@@ -33,8 +33,38 @@
 #include "gatt_db.h"
 #include "app.h"
 
+
+//1s is 32768 ticks - The Definition below sets up timer for 10ms
+#define PERIODIC_TIMEOUT 328
+
 // The advertising set handle allocated from Bluetooth stack.
 static uint8_t advertising_set_handle = 0xff;
+
+
+typedef union{
+        struct{
+            uint8_t     byte_0;
+            uint8_t     byte_1;
+            uint8_t     byte_2;
+            uint8_t     byte_3;
+            }Bytes;
+        uint32_t value;
+    } _32_8bit;
+
+
+
+
+volatile _32_8bit tick_count;
+// Handle for sleeptimer
+sl_sleeptimer_timer_handle_t my_sleeptimer_handle;
+
+volatile uint8_t data_send[] = {0,0,0,0,0,0,0,0,0,0,0,0,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63};
+volatile uint8_t data_send2[] = {0xaa,0xaa,0xaa,0xaa,0xaa};
+
+volatile uint16_t TX_counter = 0;
+volatile uint16_t RX_counter = 0;
+volatile uint16_t CRCERR_counter = 0;
+volatile uint16_t FAIL_counter = 0;
 
 /**************************************************************************//**
  * Application Init.
@@ -60,9 +90,46 @@ SL_WEAK void app_process_action(void)
 }
 
 
+/**************************************************************************//**
+ * @brief
+ *   Sleeptimer callback function. Each time sleeptimer reaches timeout value,
+ *   this callback is executed.
+ *****************************************************************************/
+void sleeptimer_cb(sl_sleeptimer_timer_handle_t *handle, void *data)
+{
+  sl_status_t sc;
 
-uint8_t data_send[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63};
-uint8_t data_send2[] = {0xaa,0xaa,0xaa,0xaa,0xaa};
+  tick_count.value+=1;
+  app_log("Tickcount = %d \n\r", tick_count.value);
+
+  app_log("byte 0 = %x \n\r", tick_count.Bytes.byte_0);
+  app_log("byte 1 = %x \n\r", tick_count.Bytes.byte_1);
+  app_log("byte 2 = %x \n\r", tick_count.Bytes.byte_2);
+  app_log("byte 3 = %x \n\r", tick_count.Bytes.byte_3);
+
+  data_send[3] = tick_count.Bytes.byte_0;
+  data_send[2] = tick_count.Bytes.byte_1;
+  data_send[1] = tick_count.Bytes.byte_2;
+  data_send[0] = tick_count.Bytes.byte_3;
+
+  sc = sl_bt_system_get_counters(0, (uint16_t *)&TX_counter,  (uint16_t *)&RX_counter, (uint16_t *)&CRCERR_counter, (uint16_t *)&FAIL_counter );
+  app_assert_status(sc);
+
+
+  data_send[5] = TX_counter;
+  data_send[6] = RX_counter;
+  data_send[7] = CRCERR_counter;
+  data_send[8] = FAIL_counter;
+
+
+  sc = sl_bt_gatt_server_write_attribute_value(gattdb_Data_TX,
+                                                                 0,
+                                                                 sizeof(data_send),
+                                                                 (unsigned char *)&data_send);
+  app_assert_status(sc);
+
+}
+
 
 /**************************************************************************//**
  * Bluetooth stack event handler.
@@ -107,11 +174,14 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
       else Dev_name[10]+=0x37;
 
 
-
+      //SysTick_Handler
       sc = sl_bt_gatt_server_write_attribute_value(gattdb_device_name,
                                                    0,
                                                    sizeof(Dev_name),
                                                    Dev_name);
+      app_assert_status(sc);
+
+      sc = sl_bt_system_set_tx_power(0, 0, 0, 0);
       app_assert_status(sc);
 
       // Create an advertising set.
@@ -136,17 +206,26 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
                                          sl_bt_advertiser_connectable_scannable);
       app_assert_status(sc);
 
-
       sc = sl_bt_gatt_server_write_attribute_value(gattdb_Data_TX,
                                                                0,
                                                                sizeof(data_send),
-                                                               &data_send);
+                                                               (unsigned char *)&data_send);
       app_assert_status(sc);
 
       sc = sl_bt_gatt_server_write_attribute_value(gattdb_Data_RX,
                                                                      0,
                                                                      sizeof(data_send2),
-                                                                     &data_send2);
+                                                                     (unsigned char *)&data_send2);
+      app_assert_status(sc);
+
+
+      tick_count.value = 0;
+      sc = sl_sleeptimer_start_periodic_timer(&my_sleeptimer_handle, PERIODIC_TIMEOUT, sleeptimer_cb, (void *)NULL,0,0);
+
+      app_assert_status(sc);
+
+      //Reset System Counters
+      sc = sl_bt_system_get_counters(1, (uint16_t *)&TX_counter,  (uint16_t *)&RX_counter, (uint16_t *)&CRCERR_counter, (uint16_t *)&FAIL_counter );
       app_assert_status(sc);
 
       break;
@@ -154,11 +233,16 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
     // -------------------------------
     // This event indicates that a new connection was opened.
     case sl_bt_evt_connection_opened_id:
+      tick_count.value = 0;
+
       break;
 
     // -------------------------------
     // This event indicates that a connection was closed.
     case sl_bt_evt_connection_closed_id:
+
+      sl_sleeptimer_stop_timer(&my_sleeptimer_handle);
+
       // Generate data for advertising
       sc = sl_bt_legacy_advertiser_generate_data(advertising_set_handle,
                                                  sl_bt_advertiser_general_discoverable);
