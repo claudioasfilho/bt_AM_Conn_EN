@@ -18,7 +18,7 @@
   </service>
   
   <!--DataService-->
-  <service advertise="true" id="DataService" name="DataService" requirement="mandatory" sourceId="" type="primary" uuid="42d9fcd8-e368-4293-bd6a-22e694ae0ce0">
+  <service advertise="true" id="DataService" name="DataService" requirement="mandatory" sourceId="" type="primary" uuid="CCCC">
     <informativeText/>
     
     <!--Data_TX-->
@@ -35,7 +35,7 @@
     <characteristic const="false" id="Data_RX" name="Data_RX" sourceId="" uuid="c165393c-f337-4efd-8c83-96226d85de6e">
       <description>Data_RX</description>
       <informativeText/>
-      <value length="5" type="hex" variable_length="false">0102030405</value>
+      <value length="6" type="hex" variable_length="false">0102030405</value>
       <properties>
         <read authenticated="false" bonded="false" encrypted="false"/>
         <write_no_response authenticated="false" bonded="false" encrypted="false"/>
