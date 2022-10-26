@@ -66,6 +66,8 @@ volatile uint16_t RX_counter = 0;
 volatile uint16_t CRCERR_counter = 0;
 volatile uint16_t FAIL_counter = 0;
 
+uint16_t payload_sent_len;
+
 #define CHAR_HANDLE       21
 #define PAYLOAD_LENGTH    64
 
@@ -252,10 +254,14 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
 
       app_log("Packet received, sending data back\r\n");
                // Received the 6 byte image, send 64 bytes back
-               sc = sl_bt_gatt_write_characteristic_value(evt->data.evt_gatt_server_attribute_value.connection,
-                                                     CHAR_HANDLE,
-                                                     64,
-                                                     data_send);
+//               sc = sl_bt_gatt_write_characteristic_value(evt->data.evt_gatt_server_attribute_value.connection,
+//                                                     CHAR_HANDLE,
+//                                                     64,
+//                                                     data_send);
+      sc =  sl_bt_gatt_write_characteristic_value_without_response(evt->data.evt_gatt_server_attribute_value.connection,
+                                                       CHAR_HANDLE,
+                                                       64,
+                                                       data_send, &payload_sent_len);
 
                app_assert_status(sc);
       }

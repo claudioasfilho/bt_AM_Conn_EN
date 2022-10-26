@@ -3,7 +3,7 @@
 
 declare -a test_array
 
-test_array=(440112534 440179444 440172391 440179577 440178999 440179604 440179393 )
+test_array=(440172391	440179577 440178999	440179604 440179393	440235155 440179444 )
 
 
 for i in ${test_array[@]}
@@ -17,4 +17,3 @@ echo -n "programming concluded on Board "
 echo $i
 
 done
-
